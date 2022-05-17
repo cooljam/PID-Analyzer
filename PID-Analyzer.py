@@ -70,7 +70,7 @@ class Trace:
         self.resp_quality = -self.to_mask((np.abs(self.spec_sm -self.resp_sm[0]).mean(axis=1)).clip(0.5-1e-9,0.5))+1.
         # masking by setting trottle of unwanted traces to neg
         self.thr_response = self.hist2d(self.max_thr * (2. * (self.toolow_mask*self.resp_quality) - 1.), self.time_resp,
-                                        (self.spec_sm.transpose() * self.toolow_mask).transpose(), [101, self.rlen])
+                                        (self.spec_sm.transpose() * self.toolow_mask).transpose(), [100, self.rlen])
 
         self.resp_low = self.weighted_mode_avr(self.spec_sm, self.low_mask*self.toolow_mask, [-1.5,3.5], 1000)
         if self.high_mask.sum()>0:
@@ -202,10 +202,19 @@ class Trace:
         wins = int(tlen/shift)-superpos
         for i in np.arange(wins):
             for key in stackdict.keys():
-                stackdict[key].append(self.data[key][i * shift:i * shift + flen])
+                min_ = i * shift
+                max_ = i * shift + flen
+
+                if(max_>tlen):
+                    max_ = tlen
+                arr = self.data[key][i * shift:max_]
+                while max_ - min_ < flen:
+                    arr = np.append(arr,[0])
+                    max_ = max_ + 1
+                stackdict[key].append(arr)
         for k in stackdict.keys():
-            #print 'key',k
-            #print stackdict[k]
+            #print('key',k) 
+            #print(stackdict[k]) 
             stackdict[k]=np.array(stackdict[k], dtype=np.float64)
         return stackdict
 
@@ -241,7 +250,7 @@ class Trace:
 
     def spectrum(self, time, traces):
         ### fouriertransform for noise analysis. returns frequencies and spectrum.
-        pad = 1024 - (len(traces[0]) % 1024)  # padding to power of 2, increases transform speed
+        pad = 1024 - (len(traces[0]) % 1024) -1 # padding to power of 2, increases transform speed
         traces = np.pad(traces, [[0, 0], [0, pad]], mode='constant')
         trspec = np.fft.rfft(traces, axis=-1, norm='ortho')
         trfreq = np.fft.rfftfreq(len(traces[0]), time[1] - time[0])
@@ -266,7 +275,8 @@ class Trace:
         ### x will be 0-100%
         freqs = np.repeat(np.array([y], dtype=np.float64), len(x), axis=0)
         throts = np.repeat(np.array([x], dtype=np.float64), len(y), axis=0).transpose()
-        throt_hist_avr, throt_scale_avr = np.histogram(x, 101, [0, 100])
+        throt_hist_avr, throt_scale_avr = np.histogram(x, bins[0], [0, 100])
+        throt_scale_avr = throt_scale_avr[0:bins[0]]
 
         hist2d = np.histogram2d(throts.flatten(), freqs.flatten(),
                                 range=[[0, 100], [y[0], y[-1]]],
@@ -291,7 +301,7 @@ class Trace:
         weights = abs(spec.real)
         avr_thr = np.abs(thr).max(axis=1)
 
-        hist2d=self.hist2d(avr_thr, freq,weights,[101,len(freq)/4])
+        hist2d=self.hist2d(avr_thr, freq,weights,[100,int(len(freq)/4)])
 
         filt_width = 3  # width of gaussian smoothing for hist data
         hist2d_sm = gaussian_filter1d(hist2d['hist2d_norm'], filt_width, axis=1, mode='constant')
@@ -362,7 +372,7 @@ class CSV_log:
     def check_lims_list(self,lims):
         if type(lims) is list:
             l=np.array(lims)
-            if str(np.shape(l))=='(4L, 2L)':
+            if str(np.shape(l))=='(4, 2)':
                 ll=l[:,1]-l[:,0]
                 if np.sum(np.abs((ll-np.abs(ll))))==0:
                     return True
@@ -388,7 +398,7 @@ class CSV_log:
                     traces[2].noise_gyro['hist2d_sm'].mean(axis=1).flatten()],dtype=np.float64)
         thresh = 100.
         mask = traces[0].to_mask(traces[0].noise_gyro['freq_axis'].clip(thresh-1e-9,thresh))
-        meanspec_max = np.max(meanspec*mask[:-1])
+        meanspec_max = np.max(meanspec*mask)
 
         if not self.check_lims_list(lims):
             lims=np.array([[1,max_noise_gyro],[1, max_noise_debug], [1, max_noise_d], [0,meanspec_max*1.5]])
@@ -519,12 +529,12 @@ class CSV_log:
             if len(axes_trans):
                 axes_trans[0].get_shared_x_axes().join(axes_trans[0], ax3)
             axes_trans.append(ax3)
-            ax3.fill_between(tr.noise_gyro['freq_axis'][:-1], 0, meanspec[i], label=tr.name + ' gyro noise', alpha=0.2)
+            ax3.fill_between(tr.noise_gyro['freq_axis'], 0, meanspec[i], label=tr.name + ' gyro noise', alpha=0.2)
             ax3.set_ylim(lims[3])
             ax3.set_ylabel(tr.name+' gyro noise a.u.')
             ax3.grid()
             ax3r = plt.twinx(ax3)
-            ax3r.plot(tr.noise_gyro['freq_axis'][:-1], tr.filter_trans*100., label=tr.name + ' filter transmission')
+            ax3r.plot(tr.noise_gyro['freq_axis'], tr.filter_trans*100., label=tr.name + ' filter transmission')
             ax3r.set_ylabel('transmission in %')
             ax3r.set_ylim([0., 100.])
             ax3r.set_xlim([tr.noise_gyro['freq_axis'][0],tr.noise_gyro['freq_axis'][-2]])
