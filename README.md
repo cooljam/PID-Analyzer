@@ -23,7 +23,7 @@ The program calculates the system response from input (PID loop input = What the
 Mathematically this is called deconvolution, which is the invers to convolution: Input * Response = Output. 
 A 0.5s long response is calculated from a 1.5s long windowed region of interest. The window is shifted roughly 0.2s to calculate each next response. 
 From a mathematical point of view this is necessary, but makes each momentary response correspond to an interval of roughly +-0.75s.
- 
+
 Any external input (by forced movement like wind) will result in an incomplete system and thus in a corrupted response. 
 Based on RC-input and quality the momentary response functions are weighted to reduces the impact of corruptions. Due to statistics, more data (longer logs) will further improve reliability of the result. 
 
@@ -63,4 +63,10 @@ Tested on Win7/10 and MacOS 10.10, with 3.15/3.2/3.3 logs.
 Happy tuning,
 
 Flo
+
+
+
+## Changes in this fork
+
+原pidanalyzer 对 inav 3.0之后的版本已经不兼容了，本次修复了相关不兼容项，由于我自己只有3.0版本的log，其他版本的log是否有问题暂时无法测试。
 
